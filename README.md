@@ -11,7 +11,7 @@ restarts itself for the next one. Under a minute it turns red and shows the seco
 No Dock icon, no window — it lives in the menu bar. Pure Swift on AppKit + SwiftUI,
 zero third-party dependencies.
 
-![Kline Timer panel](docs/panel.png)
+![Kline Timer demo](docs/demo.gif)
 
 ## Install
 
