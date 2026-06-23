@@ -12,6 +12,8 @@ PRODUCT="KlineTimer"
 APP_DIR="KlineTimer.app"
 # Info.plist template copied into the bundle.
 PLIST="Info.plist"
+# App icon (a committed asset; regenerate with tools/make-icon.sh).
+ICON="Resources/AppIcon.icns"
 # Binary to bundle. Default = the local single-arch release build; the release
 # workflow overrides this with the universal binary it has already built.
 BIN="${BIN:-.build/release/$PRODUCT}"
@@ -27,6 +29,7 @@ die() { printf '[bundle] error: %s\n' "$*" >&2; exit 1; }
 preflight() {
   command -v swift >/dev/null || die "swift not found"
   [[ -f "$PLIST" ]] || die "missing $PLIST"
+  [[ -f "$ICON" ]] || die "missing $ICON (regenerate with tools/make-icon.sh)"
 }
 
 # Compile the optimised release binary, unless the caller already built one.
@@ -47,14 +50,10 @@ assemble_bundle() {
   mkdir -p "$macos" "$APP_DIR/Contents/Resources"
   cp "$PLIST" "$APP_DIR/Contents/Info.plist"
   cp "$BIN" "$macos/$PRODUCT"
-  if [[ -f "Resources/AppIcon.icns" ]]; then
-    cp "Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
-  else
-    log "warning: Resources/AppIcon.icns missing — bundle will have no icon"
-  fi
+  cp "$ICON" "$APP_DIR/Contents/Resources/AppIcon.icns"
   if [[ "$CODESIGN" == "1" ]]; then
     log "ad-hoc signing…"
-    codesign -s - --force --deep "$APP_DIR"
+    codesign -s - --force "$APP_DIR"
   fi
   log "wrote $APP_DIR"
 }

@@ -1,8 +1,9 @@
 import AppKit
 
-// Renders the Kline Timer app icon: a gradient squircle (the menu-bar wallpaper
-// palette) with the white candlestick glyph centered. Writes a 1024px PNG to
-// argv[1]. Driven by tools/make-icon.sh, which packs it into AppIcon.icns.
+// Renders the Kline Timer app icon: a blue→purple→pink→orange gradient squircle
+// with the white candlestick glyph (the app's brand mark, see CandleGlyph.swift)
+// centered. Writes a 1024px PNG to argv[1]. Driven by tools/make-icon.sh, which
+// packs it into AppIcon.icns.
 
 let size: CGFloat = 1024
 guard let rep = NSBitmapImageRep(
@@ -38,18 +39,17 @@ ctx.saveGState()
 squircle.addClip()
 let palette = NSGradient(colors: [rgb(79, 127, 208), rgb(122, 111, 196), rgb(194, 102, 166), rgb(232, 138, 90)])!
 palette.draw(in: rect, angle: -45)
-// Subtle top gloss.
-let gloss = NSGradient(colors: [NSColor.white.withAlphaComponent(0.16), NSColor.white.withAlphaComponent(0.0)])!
-gloss.draw(in: rect, angle: -90)
 ctx.restoreGState()
 
 // Centered white candlestick: full-height wick behind a rounded body.
 let cx = size / 2
 let bodyW = rect.width * 0.26
 let bodyH = rect.height * 0.36
+let bodyR = bodyW * 0.22
 let bodyRect = CGRect(x: cx - bodyW / 2, y: size / 2 - bodyH / 2, width: bodyW, height: bodyH)
-let wickTop = rect.maxY - rect.height * 0.16
-let wickBot = rect.minY + rect.height * 0.16
+let wickInset = rect.height * 0.16
+let wickTop = rect.maxY - wickInset
+let wickBot = rect.minY + wickInset
 
 ctx.saveGState()
 ctx.setShadow(offset: CGSize(width: 0, height: -size * 0.006), blur: size * 0.02,
@@ -62,7 +62,7 @@ wick.lineCapStyle = .round
 wick.move(to: CGPoint(x: cx, y: wickBot))
 wick.line(to: CGPoint(x: cx, y: wickTop))
 wick.stroke()
-NSBezierPath(roundedRect: bodyRect, xRadius: bodyW * 0.22, yRadius: bodyW * 0.22).fill()
+NSBezierPath(roundedRect: bodyRect, xRadius: bodyR, yRadius: bodyR).fill()
 ctx.restoreGState()
 
 NSGraphicsContext.restoreGraphicsState()
