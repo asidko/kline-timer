@@ -20,8 +20,8 @@ curl -fsSL https://raw.githubusercontent.com/asidko/kline-timer/main/install.sh 
 ```
 
 Pin a version with `… | sh -s -- --tag v1.0.0`, or uninstall with `… | sh -s -- --remove`.
-Or grab `KlineTimer-macos-universal.zip` from [Releases](https://github.com/asidko/kline-timer/releases),
-unzip, and drag `KlineTimer.app` to `/Applications`.
+Or download `KlineTimer.dmg` from [Releases](https://github.com/asidko/kline-timer/releases),
+open it, and drag **Kline Timer** onto **Applications**.
 
 Then click the candle icon in the menu bar, pick a timeframe, and trade your candle.
 

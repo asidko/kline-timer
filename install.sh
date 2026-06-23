@@ -12,8 +12,8 @@ REPO="asidko/kline-timer"
 # App bundle name and install destination.
 APP="KlineTimer.app"
 DEST="/Applications"
-# Release asset (universal arm64+x86_64 build) and its checksum file.
-ASSET="KlineTimer-macos-universal.zip"
+# Release asset (universal arm64+x86_64 disk image) and its checksum file.
+ASSET="KlineTimer.dmg"
 SUMS="SHA256SUMS"
 
 log() { printf '==> %s\n' "$*"; }
@@ -40,27 +40,31 @@ resolve_tag() {
   printf '%s' "$tag"
 }
 
-# Download zip + checksum, verify, unzip into /Applications, clear the quarantine flag.
+# Download dmg + checksum, verify, copy the app out of the mounted image into
+# /Applications, clear the quarantine flag.
 install_app() {
   tag="$1"
   base="https://github.com/$REPO/releases/download/$tag"
   tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' EXIT
+  mnt="$tmp/mnt"
+  trap 'hdiutil detach "$mnt" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
 
-  log "downloading $ASSET ($tag)…"
+  log "downloading $ASSET ($tag)..."
   curl -fsSL "$base/$ASSET" -o "$tmp/$ASSET"
   curl -fsSL "$base/$SUMS"  -o "$tmp/$SUMS"
 
-  log "verifying checksum…"
+  log "verifying checksum..."
   ( cd "$tmp" && grep " $ASSET\$" "$SUMS" | shasum -a 256 -c - ) \
     || die "checksum verification failed."
 
-  log "installing to $DEST/$APP…"
+  log "installing to $DEST/$APP..."
+  mkdir -p "$mnt"
+  hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$tmp/$ASSET" >/dev/null
   rm -rf "${DEST:?}/${APP:?}"
-  unzip -q "$tmp/$ASSET" -d "$tmp/extract"
-  mv "$tmp/extract/$APP" "$DEST/$APP"
-  xattr -dr com.apple.quarantine "$DEST/$APP" 2>/dev/null || true
+  cp -R "$mnt/$APP" "$DEST/$APP"
+  hdiutil detach "$mnt" >/dev/null
 
+  xattr -dr com.apple.quarantine "$DEST/$APP" 2>/dev/null || true
   log "done — launch Kline Timer from /Applications or Spotlight."
 }
 
