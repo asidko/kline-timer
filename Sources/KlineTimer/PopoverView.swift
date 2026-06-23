@@ -90,7 +90,13 @@ struct PopoverView: View {
             row(
                 title: "Voice / chime on close",
                 subtitle: "Short beep when candle ends",
-                isOn: $settings.chimeOnClose
+                isOn: Binding(
+                    get: { settings.chimeOnClose },
+                    // Preview the beep the moment it is switched on, so the
+                    // setting confirms what to expect instead of staying silent
+                    // until the next candle close.
+                    set: { settings.chimeOnClose = $0; if $0 { Chime.play() } }
+                )
             )
         }
         .padding(.horizontal, 18)

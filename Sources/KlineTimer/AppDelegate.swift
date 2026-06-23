@@ -21,18 +21,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = hosting
         statusController = StatusItemController(popover: popover)
 
-        // Switching timeframe restarts the countdown immediately — and must not
-        // be mistaken for a candle close, so the chime baseline is cleared.
-        // `DispatchQueue.main` defers past @Published's pre-change `willSet` (so
-        // `tick()` reads the committed value) while still draining in the runloop's
-        // common modes — so the repaint lands immediately, not on the next tick,
-        // even mid-toggle-animation. (`RunLoop.main` would stall in `.default` mode.)
+        // Switching timeframe restarts the countdown in the same UI pass as the
+        // picker tap, so the readout's label and its number change together with
+        // no one-tick frame where the new label sits above the old timeframe's
+        // time. The emitted value is used directly because `@Published` fires in
+        // `willSet`, before `settings.timeframe` holds the new value. The baseline
+        // candle index is cleared so the restart is not read as a candle close.
         settings.$timeframe
             .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] timeframe in
                 self?.lastCandleIndex = nil
-                self?.tick()
+                self?.tick(timeframe: timeframe)
             }
             .store(in: &cancellables)
 
@@ -47,15 +46,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startTicking() {
         tick()
-        let timer = Timer(timeInterval: 1.0, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
+        let timer = Timer(timeInterval: 1.0, target: self, selector: #selector(tick as () -> Void), userInfo: nil, repeats: true)
         timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)
         ticker = timer
     }
 
     @objc private func tick() {
+        tick(timeframe: settings.timeframe)
+    }
+
+    private func tick(timeframe: Timeframe) {
         let now = Date().timeIntervalSince1970
-        let timeframe = settings.timeframe
         let secondsLeft = CandleClock.secondsLeft(timeframe: timeframe, now: now)
         let index = CandleClock.candleIndex(timeframe: timeframe, now: now)
 
