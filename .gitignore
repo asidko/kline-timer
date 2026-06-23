@@ -1,0 +1,18 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Built app bundle (produced by bundle.sh / release CI)
+*.app/
+
+# Release artifacts
+*.zip
+SHA256SUMS
+
+# macOS
+.DS_Store
+
+# Xcode / editor cruft
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
