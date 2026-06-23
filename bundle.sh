@@ -47,6 +47,11 @@ assemble_bundle() {
   mkdir -p "$macos" "$APP_DIR/Contents/Resources"
   cp "$PLIST" "$APP_DIR/Contents/Info.plist"
   cp "$BIN" "$macos/$PRODUCT"
+  if [[ -f "Resources/AppIcon.icns" ]]; then
+    cp "Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
+  else
+    log "warning: Resources/AppIcon.icns missing — bundle will have no icon"
+  fi
   if [[ "$CODESIGN" == "1" ]]; then
     log "ad-hoc signing…"
     codesign -s - --force --deep "$APP_DIR"
