@@ -14,6 +14,10 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private lazy var redGlyph = CandleGlyph.image(red: true)
     private var pulsing = false
 
+    /// Called with `true` when the panel opens and `false` when it closes, so
+    /// the coin monitor can speed up or relax its refresh cadence.
+    var onPanelVisibilityChange: ((Bool) -> Void)?
+
     // The menu-bar title fonts never change — build them once, not every tick.
     private static let regularFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
     private static let semiboldFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
@@ -92,8 +96,13 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         }
     }
 
+    func popoverDidShow(_ notification: Notification) {
+        onPanelVisibilityChange?(true)
+    }
+
     func popoverDidClose(_ notification: Notification) {
         // Let the item resize to fit again; its title is already current from the last tick.
         statusItem.length = NSStatusItem.variableLength
+        onPanelVisibilityChange?(false)
     }
 }

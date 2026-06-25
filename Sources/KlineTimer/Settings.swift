@@ -7,6 +7,8 @@ final class Settings: ObservableObject {
     @Published var timeframe: Timeframe { didSet { defaults.set(timeframe.rawValue, forKey: Keys.timeframe) } }
     @Published var showCountdown: Bool { didSet { defaults.set(showCountdown, forKey: Keys.showCountdown) } }
     @Published var chimeOnClose: Bool { didSet { defaults.set(chimeOnClose, forKey: Keys.chimeOnClose) } }
+    /// Binance pairs whose live candle chart shows in the panel, e.g. "BTCUSDT".
+    @Published var watchedSymbols: [String] { didSet { defaults.set(watchedSymbols, forKey: Keys.watchedSymbols) } }
 
     private let defaults: UserDefaults
 
@@ -14,6 +16,7 @@ final class Settings: ObservableObject {
         static let timeframe = "timeframe"
         static let showCountdown = "showCountdown"
         static let chimeOnClose = "chimeOnClose"
+        static let watchedSymbols = "watchedSymbols"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -22,5 +25,10 @@ final class Settings: ObservableObject {
         self.timeframe = storedTimeframe ?? .m5
         self.showCountdown = (defaults.object(forKey: Keys.showCountdown) as? Bool) ?? true
         self.chimeOnClose = (defaults.object(forKey: Keys.chimeOnClose) as? Bool) ?? false
+        // First run seeds BTC so the new chart is visible; afterwards the stored
+        // list wins, including an empty one the user cleared on purpose.
+        self.watchedSymbols = defaults.object(forKey: Keys.watchedSymbols) == nil
+            ? ["BTCUSDT"]
+            : (defaults.stringArray(forKey: Keys.watchedSymbols) ?? [])
     }
 }

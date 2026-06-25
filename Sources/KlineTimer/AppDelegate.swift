@@ -4,9 +4,11 @@ import Combine
 import KlineCore
 
 /// Wires the one-second clock to the status item, popover, settings and chime.
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = Settings()
     private let timerModel = TimerModel()
+    private lazy var coinMonitor = CoinMonitor(settings: settings)
     private var statusController: StatusItemController!
     private var popover: NSPopover!
     private var ticker: Timer?
@@ -14,12 +16,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastCandleIndex: Int?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let hosting = NSHostingController(rootView: PopoverView(settings: settings, timer: timerModel))
+        let hosting = NSHostingController(
+            rootView: PopoverView(settings: settings, timer: timerModel, monitor: coinMonitor)
+        )
         hosting.sizingOptions = [.preferredContentSize]  // let the popover size to the SwiftUI content
         popover = NSPopover()
         popover.behavior = .transient
         popover.contentViewController = hosting
         statusController = StatusItemController(popover: popover)
+        // Charts poll gently in the background; faster while the panel is open.
+        statusController.onPanelVisibilityChange = { [weak self] open in
+            self?.coinMonitor.setPanelOpen(open)
+        }
+        coinMonitor.begin()
 
         // Switching timeframe restarts the countdown in the same UI pass as the
         // picker tap, so the readout's label and its number change together with
@@ -61,8 +70,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let secondsLeft = CandleClock.secondsLeft(timeframe: timeframe, now: now)
         let index = CandleClock.candleIndex(timeframe: timeframe, now: now)
 
-        if let last = lastCandleIndex, index > last, settings.chimeOnClose {
-            Chime.play()
+        if let last = lastCandleIndex, index > last {
+            // A candle just closed: a new one is now open on the exchange.
+            if settings.chimeOnClose { Chime.play() }
+            coinMonitor.refreshNow()  // roll the charts forward immediately
         }
         lastCandleIndex = index
 

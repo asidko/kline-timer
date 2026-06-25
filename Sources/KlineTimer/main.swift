@@ -22,8 +22,13 @@ default:
 }
 
 // Menu-bar agent: no Dock icon, no app menu bar — lives entirely in the status bar.
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.setActivationPolicy(.accessory)
-app.run()
+// The launch runs on the main thread; `assumeIsolated` lets it touch the
+// main-actor `AppDelegate` without an await. `run()` never returns, so the
+// delegate stays retained for the app's lifetime.
+MainActor.assumeIsolated {
+    let app = NSApplication.shared
+    let delegate = AppDelegate()
+    app.delegate = delegate
+    app.setActivationPolicy(.accessory)
+    app.run()
+}

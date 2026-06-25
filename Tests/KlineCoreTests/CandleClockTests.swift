@@ -53,4 +53,22 @@ final class CandleClockTests: XCTestCase {
         XCTAssertEqual(CandleClock.format(secondsLeft: 47), "0:47")
         XCTAssertEqual(CandleClock.format(secondsLeft: 3661), "1:01:01")
     }
+
+    // The chart fits to the series extremes: lowest low and highest high across
+    // all candles, not just the first or last. A wrong range squashes the chart.
+    func testPriceRangeSpansAllCandles() {
+        let candles = [
+            Candle(open: 10, high: 12, low: 9, close: 11),
+            Candle(open: 11, high: 15, low: 8, close: 14),
+            Candle(open: 14, high: 14, low: 13, close: 13),
+        ]
+        let range = candles.priceRange
+        XCTAssertEqual(range?.low, 8)
+        XCTAssertEqual(range?.high, 15)
+    }
+
+    // An empty series has no extent — the chart must draw nothing, not crash.
+    func testPriceRangeEmptyIsNil() {
+        XCTAssertNil([Candle]().priceRange)
+    }
 }
