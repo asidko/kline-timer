@@ -1,17 +1,16 @@
 import SwiftUI
+import AppKit
 import KlineCore
 
-/// The popover panel: countdown readout, timeframe picker, watched-coin charts,
-/// toggles and quit.
+/// The popover panel: countdown readout, timeframe picker, the watched-coin
+/// chart, toggles and quit. The Watch-coin button opens a spotlight-style
+/// picker that replaces the panel until a coin is chosen or it's dismissed.
 struct PopoverView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var timer: TimerModel
     @ObservedObject var monitor: CoinMonitor
 
-    @State private var adding = false
-    @State private var draft = ""
-    @State private var addFailed = false
-    @State private var validating = false
+    @State private var showPicker = false
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 7), count: 4)
 
@@ -21,30 +20,62 @@ struct PopoverView: View {
     }
 
     var body: some View {
+        Group {
+            if showPicker {
+                CoinPickerView(monitor: monitor, settings: settings, onClose: { showPicker = false })
+            } else {
+                panel
+            }
+        }
+        .frame(width: 288)
+    }
+
+    private var panel: some View {
         VStack(spacing: 0) {
             readout
             Divider()
             VStack(spacing: 0) {
                 timeframePicker
-                watchCoinControl
+                watchCoinButton
             }
-            ForEach(monitor.coins) { coin in
+            if !monitor.coins.isEmpty {
                 Divider()
-                coinRow(coin)
+                coinsScroller
             }
             Divider()
             toggles
             Divider()
             quit
         }
-        .frame(width: 288)
+    }
+
+    // MARK: Watched coins
+
+    private static let visibleCoinRows: CGFloat = 2
+
+    /// The watched coins, scrollable once past the second so the panel never
+    /// grows taller than two charts no matter how many coins are added. The cap
+    /// derives from `CoinRowView.rowHeight`, so it tracks the row's own layout.
+    private var coinsScroller: some View {
+        let count = CGFloat(monitor.coins.count)
+        let content = count * CoinRowView.rowHeight + max(0, count - 1)  // rows + inner dividers
+        let cap = Self.visibleCoinRows * CoinRowView.rowHeight + 1
+        return OverlayScroll {
+            VStack(spacing: 0) {
+                ForEach(Array(monitor.coins.enumerated()), id: \.element.id) { index, coin in
+                    if index > 0 { Divider() }
+                    CoinRowView(coin: coin, onRemove: { monitor.remove(coin.symbol) })
+                }
+            }
+        }
+        .frame(height: min(content, cap))
     }
 
     // MARK: Readout
 
     private var readout: some View {
         VStack(alignment: .leading, spacing: 0) {
-            tag("Next \(settings.timeframe.label) close")
+            Text("Next \(settings.timeframe.label) close").tagStyle()
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(timeString)
                     .font(.system(size: 40, weight: .semibold).monospacedDigit())
@@ -65,7 +96,7 @@ struct PopoverView: View {
 
     private var timeframePicker: some View {
         VStack(alignment: .leading, spacing: 9) {
-            tag("Timeframe")
+            Text("Timeframe").tagStyle()
             LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(Timeframe.allCases) { tf in
                     let selected = settings.timeframe == tf
@@ -90,115 +121,23 @@ struct PopoverView: View {
 
     // MARK: Watch coin
 
-    @ViewBuilder private var watchCoinControl: some View {
-        Group {
-            if adding { addCoinField } else { addCoinButton }
-        }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 13)
-    }
-
-    private var addCoinButton: some View {
-        Button { adding = true } label: {
-            HStack(spacing: 6) {
-                Text("+").font(.system(size: 14, weight: .semibold))
-                Text("Watch coin").font(.system(size: 12.5, weight: .semibold))
-            }
-            .foregroundStyle(Color.accentColor)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    .foregroundStyle(Color.primary.opacity(0.22))
-            )
-            .contentShape(Rectangle())
+    private var watchCoinButton: some View {
+        Button { showPicker = true } label: {
+            Text("Watch coin")
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                        .foregroundStyle(Color.primary.opacity(0.22))
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private var addCoinField: some View {
-        HStack(spacing: 6) {
-            TextField("Symbol, e.g. ETH", text: $draft)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-                .onChange(of: draft) { _ in addFailed = false }
-                .onSubmit { submitDraft() }
-            if validating {
-                ProgressView().controlSize(.small)
-            } else {
-                Button("Add") { submitDraft() }
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
-                    .disabled(draft.isEmpty)
-                Button { cancelAdd() } label: {
-                    Image(systemName: "xmark").font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(addFailed ? Color.red.opacity(0.7) : Color.primary.opacity(0.18))
-        )
-    }
-
-    private func submitDraft() {
-        let symbol = draft
-        guard !symbol.isEmpty, !validating else { return }
-        validating = true
-        addFailed = false
-        Task {
-            let ok = await monitor.add(symbol)
-            validating = false
-            if ok { cancelAdd() } else { addFailed = true }
-        }
-    }
-
-    private func cancelAdd() {
-        adding = false
-        draft = ""
-        addFailed = false
-    }
-
-    // MARK: Watched coin row
-
-    private func coinRow(_ coin: WatchedCoin) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                tag(coin.displayName)
-                Spacer(minLength: 0)
-                if let price = coin.price {
-                    Text(Self.formatPrice(price))
-                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                        .tracking(0.6)
-                        .foregroundStyle(.primary)
-                } else if coin.failed {
-                    Text("unavailable").font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                Button { monitor.remove(coin.symbol) } label: {
-                    Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.tertiary)
-            }
-            if coin.candles.isEmpty {
-                Text(coin.failed ? "Couldn't load candles" : "Loading…")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(height: 96, alignment: .center)
-                    .frame(maxWidth: .infinity)
-            } else {
-                CandleChartView(candles: coin.candles)
-                    .frame(height: 96)
-            }
-        }
         .padding(.horizontal, 18)
-        .padding(.vertical, 13)
+        .padding(.bottom, 13)
     }
 
     // MARK: Toggles
@@ -262,32 +201,155 @@ struct PopoverView: View {
         .padding(.vertical, 11)
     }
 
-    // MARK: Helpers
+}
 
+extension Text {
     /// The shared uppercase micro-label used for "NEXT 5M CLOSE", "TIMEFRAME"
     /// and a coin's ticker.
-    private func tag(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
+    func tagStyle() -> some View {
+        self.font(.system(size: 11, weight: .semibold))
             .tracking(0.6)
             .textCase(.uppercase)
             .foregroundStyle(.secondary)
     }
+}
 
-    /// Group-separated price with a precision that suits the magnitude: coarse
-    /// for four-figure coins, finer for sub-dollar ones.
-    private static func formatPrice(_ price: Double) -> String {
-        let fractionDigits: Int
-        switch abs(price) {
-        case 1000...: fractionDigits = 1
-        case 1...: fractionDigits = 2
-        case 0.01...: fractionDigits = 4
-        default: fractionDigits = 6
+/// One watched coin: ticker + hover-revealed trash (slides in, no layout shift,
+/// reddens on its own hover) + live price, above the candle chart. The whole
+/// card is the hover target, so moving from the ticker to the trash never drops
+/// the hover the way a header-only region would.
+private struct CoinRowView: View {
+    let coin: WatchedCoin
+    let onRemove: () -> Void
+    @State private var rowHover = false
+
+    // Layout constants — these also derive `rowHeight`, which sizes the scroll
+    // viewport, so a change here keeps the 2-row clamp in sync automatically.
+    private static let chartHeight: CGFloat = 96
+    private static let spacing: CGFloat = 9
+    private static let verticalPadding: CGFloat = 13
+    private static let headerHeight: CGFloat = 14  // single-line ticker/price row
+    static let rowHeight = verticalPadding + headerHeight + spacing + chartHeight + verticalPadding
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Self.spacing) {
+            header
+            chart
         }
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = fractionDigits
-        formatter.maximumFractionDigits = fractionDigits
-        return formatter.string(from: NSNumber(value: price)) ?? String(price)
+        .padding(.horizontal, 18)
+        .padding(.vertical, Self.verticalPadding)
+        .contentShape(Rectangle())
+        .onHover { rowHover = $0 }
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text(coin.displayName).tagStyle()
+            TrashButton(visible: rowHover, action: onRemove)
+            Spacer(minLength: 0)
+            if let price = coin.price {
+                Text(PriceFormat.string(price))
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .tracking(0.6)
+                    .foregroundStyle(.primary)
+            } else if coin.failed {
+                Text("unavailable").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder private var chart: some View {
+        if coin.candles.isEmpty {
+            Text(coin.failed ? "Couldn't load candles" : "Loading…")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(height: Self.chartHeight, alignment: .center)
+                .frame(maxWidth: .infinity)
+        } else {
+            CandleChartView(candles: coin.candles)
+                .frame(height: Self.chartHeight)
+        }
+    }
+}
+
+/// A trash button that occupies its slot at all times (so revealing it never
+/// reflows the row), fades + slides in when its row is hovered, and turns red
+/// when hovered directly.
+private struct TrashButton: View {
+    let visible: Bool
+    let action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "trash")
+                .font(.system(size: 11))
+                .foregroundStyle(hover ? Color.red : Color.secondary)
+                .opacity(visible ? 1 : 0)
+                .offset(x: visible ? 0 : 7)
+                .animation(.easeOut(duration: 0.15), value: visible)
+        }
+        .buttonStyle(.plain)
+        .allowsHitTesting(visible)
+        .onHover { hover = $0 }
+        .help("Remove from watchlist")
+    }
+}
+
+/// Group-separated price with a precision that suits the magnitude: coarse for
+/// four-figure coins, finer for sub-dollar ones.
+enum PriceFormat {
+    // One reusable formatter per precision — NumberFormatter is costly to build,
+    // and the header re-renders on every price tick.
+    private static let formatters: [Int: NumberFormatter] = Dictionary(
+        uniqueKeysWithValues: [1, 2, 4, 6].map { digits in
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            formatter.minimumFractionDigits = digits
+            formatter.maximumFractionDigits = digits
+            return (digits, formatter)
+        }
+    )
+
+    static func string(_ price: Double) -> String {
+        let digits: Int
+        switch abs(price) {
+        case 1000...: digits = 1
+        case 1...: digits = 2
+        case 0.01...: digits = 4
+        default: digits = 6
+        }
+        return formatters[digits]?.string(from: NSNumber(value: price)) ?? String(price)
+    }
+}
+
+/// A vertical scroll container that always uses macOS overlay scrollers — thin
+/// and auto-hiding — even when the user's setting is "Always show scroll bars",
+/// which SwiftUI's own `ScrollView` honors with a thick legacy bar that
+/// `.scrollIndicators(.hidden)` doesn't suppress.
+private struct OverlayScroll<Content: View>: NSViewRepresentable {
+    @ViewBuilder var content: Content
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.scrollerStyle = .overlay
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.drawsBackground = false
+
+        let hosting = NSHostingView(rootView: content)
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.documentView = hosting
+        NSLayoutConstraint.activate([
+            hosting.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            hosting.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
+            hosting.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+        ])
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        (scrollView.documentView as? NSHostingView<Content>)?.rootView = content
     }
 }

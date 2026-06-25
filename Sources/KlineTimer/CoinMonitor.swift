@@ -2,7 +2,7 @@ import Foundation
 import Combine
 import KlineCore
 
-/// A coin the panel charts: its Binance pair, a friendly label, and the most
+/// A coin charted in the panel: its Binance pair, a friendly label, and the most
 /// recent candles/price (or a `failed` flag when the last fetch errored).
 struct WatchedCoin: Identifiable {
     let symbol: String          // full Binance pair, e.g. "BTCUSDT"
@@ -14,8 +14,8 @@ struct WatchedCoin: Identifiable {
 }
 
 /// Live candle data for the watched coins on the active timeframe. Polls
-/// continuously once started: gently in the background, and faster while the
-/// panel is open so the chart feels live.
+/// continuously once started: gently in the background, faster while the panel
+/// is open so the charts feel live.
 @MainActor
 final class CoinMonitor: ObservableObject {
     @Published private(set) var coins: [WatchedCoin] = []
@@ -26,9 +26,11 @@ final class CoinMonitor: ObservableObject {
 
     private static let candleCount = 10
     /// Refresh cadence: snappy while the user watches the panel, gentle in the
-    /// background so the price is already warm the next time it opens.
+    /// background so prices are already warm the next time it opens.
     private static let openInterval: TimeInterval = 2
     private static let idleInterval: TimeInterval = 10
+    // More than the picker shows (3), so filtering out already-watched coins still leaves recents.
+    private static let maxRecents = 12
 
     init(settings: Settings) {
         self.settings = settings
@@ -48,7 +50,7 @@ final class CoinMonitor: ObservableObject {
     }
 
     /// Switch cadence as the panel opens (fast) or closes (idle). Opening also
-    /// refreshes at once so the chart is current the instant it appears.
+    /// refreshes at once so the charts are current the instant they appear.
     func setPanelOpen(_ open: Bool) {
         schedule(every: open ? Self.openInterval : Self.idleInterval)
         if open { Task { await refresh() } }
@@ -65,21 +67,16 @@ final class CoinMonitor: ObservableObject {
 
     // MARK: Mutations
 
-    /// Validate a typed symbol against Binance, then start watching it. Returns
-    /// false (and changes nothing) when the symbol is empty or unknown.
-    func add(_ raw: String) async -> Bool {
-        guard let symbol = Self.normalize(raw) else { return false }
-        if coins.contains(where: { $0.symbol == symbol }) { return true }
-        guard let candles = try? await BinanceClient.klines(
-            symbol: symbol, interval: settings.timeframe.label, limit: Self.candleCount
-        ), !candles.isEmpty else { return false }
-
-        coins.append(WatchedCoin(
-            symbol: symbol, displayName: Self.display(symbol),
-            candles: candles, price: candles.last?.close
-        ))
+    /// Add a coin picked from the catalog (its base ticker, e.g. "ETH") to the
+    /// bottom of the list and record it in recents. Already-watched is a no-op.
+    func add(_ base: String) {
+        guard let symbol = Self.normalize(base) else { return }
+        let name = Self.display(symbol)
+        pushRecent(name)
+        guard !coins.contains(where: { $0.symbol == symbol }) else { return }
+        coins.append(WatchedCoin(symbol: symbol, displayName: name))
         settings.watchedSymbols = coins.map(\.symbol)
-        return true
+        refreshNow()
     }
 
     func remove(_ symbol: String) {
@@ -132,6 +129,12 @@ final class CoinMonitor: ObservableObject {
         coins.sort {
             (symbols.firstIndex(of: $0.symbol) ?? 0) < (symbols.firstIndex(of: $1.symbol) ?? 0)
         }
+    }
+
+    private func pushRecent(_ base: String) {
+        var recents = settings.recentSymbols.filter { $0 != base }
+        recents.insert(base, at: 0)
+        settings.recentSymbols = Array(recents.prefix(Self.maxRecents))
     }
 
     // MARK: Symbol shaping

@@ -25,10 +25,9 @@ public enum CandleClock {
         Int((now / TimeInterval(timeframe.seconds)).rounded(.down))
     }
 
-    /// The final-minute alert state: red readout, seconds shown even when the
-    /// menu-bar countdown is hidden. Only candles longer than the 60s alert
-    /// window qualify — a 1m candle would otherwise be "final" its whole life,
-    /// permanently overriding the hide-countdown toggle.
+    /// Whether the candle is in its final minute — the window the UI may flag
+    /// with a red readout. Only candles longer than the 60s window qualify: a 1m
+    /// candle is never "final" (it would otherwise be "final" its whole life).
     public static func isFinalMinute(timeframe: Timeframe, secondsLeft: Int) -> Bool {
         secondsLeft < alertWindowSeconds && timeframe.seconds > alertWindowSeconds
     }

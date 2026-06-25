@@ -4,15 +4,19 @@ import KlineCore
 /// Owns the menu-bar status item: renders the glyph plus countdown, pulses red
 /// in the final minute, and toggles the popover on click.
 ///
-/// While the popover is open the item's width is frozen: re-renders (every
-/// second, or when a toggle hides the countdown) must not resize the status
-/// item, or the popover — which is anchored to it — jumps.
+/// While the popover is open the menu-bar presentation is held steady: renders
+/// are recorded but not applied, then re-applied on close. The item's width can
+/// therefore never change while the panel is up — so the popover, anchored to
+/// the item, can't be yanked by a timeframe switch, the Show-countdown toggle,
+/// or the final-minute readout. The item stays at `variableLength` throughout,
+/// so the glyph sits in the same spot whether the panel is open or closed.
 final class StatusItemController: NSObject, NSPopoverDelegate {
     private let statusItem: NSStatusItem
     private let popover: NSPopover
     private lazy var normalGlyph = CandleGlyph.image(red: false)
     private lazy var redGlyph = CandleGlyph.image(red: true)
     private var pulsing = false
+    private var lastRender: (timeframe: Timeframe, secondsLeft: Int, showCountdown: Bool)?
 
     /// Called with `true` when the panel opens and `false` when it closes, so
     /// the coin monitor can speed up or relax its refresh cadence.
@@ -35,16 +39,25 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         }
     }
 
-    /// Refresh the menu-bar presentation for the current tick.
+    /// Refresh the menu-bar presentation for the current tick — unless the panel
+    /// is open, in which case the state is recorded and applied on close.
     func render(timeframe: Timeframe, secondsLeft: Int, showCountdown: Bool) {
+        lastRender = (timeframe, secondsLeft, showCountdown)
+        guard !popover.isShown else { return }
+        apply(timeframe: timeframe, secondsLeft: secondsLeft, showCountdown: showCountdown)
+    }
+
+    private func apply(timeframe: Timeframe, secondsLeft: Int, showCountdown: Bool) {
         guard let button = statusItem.button else { return }
-        let final = CandleClock.isFinalMinute(timeframe: timeframe, secondsLeft: secondsLeft)
+        // "Show countdown" off means just the icon — the final-minute alert no
+        // longer overrides the toggle.
+        let final = showCountdown && CandleClock.isFinalMinute(timeframe: timeframe, secondsLeft: secondsLeft)
         let time = CandleClock.format(secondsLeft: secondsLeft)
 
         let position: NSControl.ImagePosition
         let attributedTitle: NSAttributedString
         if final {
-            // Red seconds without the timeframe prefix — shown even when the countdown is off.
+            // Final minute: red seconds without the timeframe prefix.
             position = .imageLeading
             attributedTitle = title(" \(time)", color: .systemRed, font: Self.semiboldFont)
         } else if showCountdown {
@@ -88,8 +101,6 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            // Freeze the width at its current value so renders can't move the popover.
-            statusItem.length = button.frame.width
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
@@ -101,8 +112,11 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
-        // Let the item resize to fit again; its title is already current from the last tick.
-        statusItem.length = NSStatusItem.variableLength
+        // Catch the menu bar up to the state it missed while the panel was open,
+        // without waiting for the next tick.
+        if let last = lastRender {
+            apply(timeframe: last.timeframe, secondsLeft: last.secondsLeft, showCountdown: last.showCountdown)
+        }
         onPanelVisibilityChange?(false)
     }
 }
