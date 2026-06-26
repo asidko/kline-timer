@@ -25,6 +25,8 @@ zero third-party dependencies.
 - **Quick search** — find any coin by ticker or name.
 - **Live charts** — candlestick and price update in real time.
 
+![Kline Timer watchlist](docs/watchlist.png)
+
 ## Install
 
 **Install script** *(recommended).* Downloads the latest release and installs it to `/Applications`; append `-s -- --remove` to uninstall.
@@ -55,17 +57,6 @@ to one glance at the menu bar: the exact seconds to close, on the timeframe you'
 
 - **A chart tab left open** — works, but it's a whole window and you still eyeball the close. Kline Timer is a glanceable line in the menu bar.
 - **A generic countdown / Pomodoro timer** — counts down a fixed duration you set by hand. Kline Timer aligns to real exchange candle boundaries and auto-restarts every close, so you never reset it.
-
-## Watch coins
-
-![Kline Timer watchlist](docs/watchlist.png)
-
-Click **Watch coin** to open a spotlight-style picker — search a Binance pair by
-ticker or name, or pick from Recent and All. Each watched coin gets a live
-candlestick chart and price in the panel, on the timeframe you're counting down.
-Add as many as you like (the list scrolls past two); hover a coin's ticker and
-click the trash to remove it. Charts refresh every couple of seconds while the
-panel is open and roll forward the instant a candle closes.
 
 ## Usage
 
