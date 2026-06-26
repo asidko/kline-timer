@@ -27,13 +27,13 @@ zero third-party dependencies.
 
 ## Install
 
+**Recommended** — the script clears the macOS quarantine flag, so the app just launches:
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/asidko/kline-timer/main/install.sh | sh
 ```
 
-Pin a version with `… | sh -s -- --tag v1.0.0`, or uninstall with `… | sh -s -- --remove`.
-
-Or with [Homebrew](https://brew.sh):
+Or with [Homebrew](https://brew.sh) — Homebrew quarantines the app, so the first launch is blocked; approve it once under **System Settings → Privacy & Security → Open Anyway**:
 
 ```sh
 brew install --cask asidko/tap/kline-timer
