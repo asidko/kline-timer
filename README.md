@@ -27,19 +27,19 @@ zero third-party dependencies.
 
 ## Install
 
-**Recommended** — the script clears the macOS quarantine flag, so the app just launches:
+**Install script** *(recommended).* Downloads the latest release and installs it to `/Applications`; append `-s -- --remove` to uninstall.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/asidko/kline-timer/main/install.sh | sh
 ```
 
-Or with [Homebrew](https://brew.sh) — Homebrew quarantines the app, so the first launch is blocked; approve it once under **System Settings → Privacy & Security → Open Anyway**:
+**Homebrew.** Quarantines the app, so the first launch is blocked — approve it once under **System Settings → Privacy & Security → Open Anyway**.
 
 ```sh
 brew install --cask asidko/tap/kline-timer
 ```
 
-Or download `KlineTimer.dmg` from [Releases](https://github.com/asidko/kline-timer/releases),
+**Manual.** Download `KlineTimer.dmg` from [Releases](https://github.com/asidko/kline-timer/releases),
 open it, and drag **Kline Timer** onto **Applications**.
 
 Then click the candle icon in the menu bar, pick a timeframe, and trade your candle.
