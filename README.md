@@ -1,9 +1,14 @@
-# Kline Timer
+<p align="center">
+  <img src="docs/logo.png" alt="Kline Timer" width="120" height="120">
+</p>
 
-[![Swift](https://img.shields.io/badge/Swift-5.9+-orange?logo=swift&logoColor=white)](https://swift.org)
-[![Platform](https://img.shields.io/badge/macOS-13+-black?logo=apple)](https://www.apple.com/macos)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/asidko/kline-timer/actions/workflows/ci.yml/badge.svg)](https://github.com/asidko/kline-timer/actions/workflows/ci.yml)
+# Kline Timer ⏰ — menu-bar countdown to the candle close
+
+[![Swift](https://img.shields.io/badge/Swift-5.9+-F05138?style=for-the-badge&logo=swift&logoColor=white)](https://swift.org)
+[![macOS](https://img.shields.io/badge/macOS-13+-000000?style=for-the-badge&logo=apple&logoColor=white)](https://www.apple.com/macos)
+[![Release](https://img.shields.io/github/v/release/asidko/kline-timer?style=for-the-badge&logo=github)](https://github.com/asidko/kline-timer/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/asidko/kline-timer/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/asidko/kline-timer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 A light, native macOS menu-bar app that counts down the current trading candle and
 restarts itself for the next one. Under a minute it turns red and shows the seconds.
@@ -14,6 +19,12 @@ zero third-party dependencies.
 
 ![Kline Timer demo](docs/demo.gif)
 
+## What's new in v1.2.0
+
+- **Watch live coins** — add Binance pairs and see them in the panel.
+- **Quick search** — find any coin by ticker or name.
+- **Live charts** — candlestick and price update in real time.
+
 ## Install
 
 ```sh
@@ -21,6 +32,13 @@ curl -fsSL https://raw.githubusercontent.com/asidko/kline-timer/main/install.sh 
 ```
 
 Pin a version with `… | sh -s -- --tag v1.0.0`, or uninstall with `… | sh -s -- --remove`.
+
+Or with [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask asidko/tap/kline-timer
+```
+
 Or download `KlineTimer.dmg` from [Releases](https://github.com/asidko/kline-timer/releases),
 open it, and drag **Kline Timer** onto **Applications**.
 
@@ -98,6 +116,11 @@ Two targets enforce the layering:
 The UI never does candle math; the core never imports AppKit or talks to the network.
 The one-second clock lives in `AppDelegate` and pushes computed values out to both the
 status item and the panel; the watchlist polls Binance's public klines endpoint.
+
+## Related
+
+- **Binance Kline Scanner** 🔎 — screen Binance USD-M futures for fresh same-color candle impulses (CLI). [asidko/binance-kline-scanner](https://github.com/asidko/binance-kline-scanner)
+- **Binance Futures Monitor** 🔔 — price-level alerts for Binance USD-M futures; one small binary, background daemon, alerts to Telegram/file/webhook/stdout (CLI). [asidko/binance-futures-monitor](https://github.com/asidko/binance-futures-monitor)
 
 ## License
 
