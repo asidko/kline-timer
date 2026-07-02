@@ -19,11 +19,14 @@ zero third-party dependencies.
 
 ![Kline Timer demo](docs/demo.gif)
 
-## What's new in v1.2.0
+## What's new in v1.3.0
 
-- **Watch live coins** — add Binance pairs and see them in the panel.
-- **Quick search** — find any coin by ticker or name.
-- **Live charts** — candlestick and price update in real time.
+- **Price levels** — flip on *Draw lines* and click a chart to mark a level; click × to remove it.
+- **Bell alerts** — arm a level's bell to get a macOS notification when the price crosses it and when a candle closes beyond it.
+- **Steadier panel** — the panel now opens exactly under the icon, every time.
+
+Earlier, in v1.2.0: a watchlist of live Binance coins — add pairs by quick search and
+watch their candlestick charts update in real time.
 
 ![Kline Timer watchlist](docs/watchlist.png)
 
