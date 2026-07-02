@@ -10,6 +10,7 @@ struct WatchedCoin: Identifiable {
     var candles: [Candle] = []
     var price: Double?
     var failed = false
+    var levels: [PriceLevel] = []   // user-drawn horizontal price levels
     var id: String { symbol }
 }
 
@@ -76,24 +77,57 @@ final class CoinMonitor: ObservableObject {
         guard !coins.contains(where: { $0.symbol == symbol }) else { return }
         coins.append(WatchedCoin(symbol: symbol, displayName: name))
         settings.watchedSymbols = coins.map(\.symbol)
-        refreshNow()
+        Task { await refresh() }
     }
 
     func remove(_ symbol: String) {
         coins.removeAll { $0.symbol == symbol }
         settings.watchedSymbols = coins.map(\.symbol)
+        settings.priceLevels[symbol] = nil  // levels die with the coin
+    }
+
+    // MARK: Price levels
+
+    /// Draw a horizontal level at `price` on a coin, armed for the direction the
+    /// market would have to move to reach it. A near-identical level is a no-op so
+    /// repeated clicks at the same spot don't stack lines; "near" scales with the
+    /// visible price span, falling back to exact-match when it's flat.
+    func addLevel(_ symbol: String, price: Double) {
+        mutateCoin(symbol) { coin in
+            let span = coin.candles.priceRange.map { $0.high - $0.low } ?? 0
+            guard !coin.levels.contains(where: { abs($0.price - price) <= span * 0.002 }) else { return }
+            let market = coin.price ?? coin.candles.last?.close ?? price
+            coin.levels.append(PriceLevel(price: price, side: PriceLevel.side(forLineAt: price, market: market)))
+        }
+    }
+
+    func removeLevel(_ symbol: String, id: PriceLevel.ID) {
+        mutateCoin(symbol) { $0.levels.removeAll { $0.id == id } }
+    }
+
+    /// Arm or mute a level's alert.
+    func setBell(_ symbol: String, id: PriceLevel.ID, on: Bool) {
+        mutateCoin(symbol) { coin in
+            guard let index = coin.levels.firstIndex(where: { $0.id == id }) else { return }
+            coin.levels[index].bell = on
+        }
+    }
+
+    /// Find a coin, edit it in place, and persist its levels under its own key —
+    /// the shape every level mutation shares.
+    private func mutateCoin(_ symbol: String, _ edit: (inout WatchedCoin) -> Void) {
+        guard let index = coins.firstIndex(where: { $0.symbol == symbol }) else { return }
+        edit(&coins[index])
+        let levels = coins[index].levels
+        settings.priceLevels[symbol] = levels.isEmpty ? nil : levels
     }
 
     // MARK: Fetch
 
-    /// Refresh now — used when a candle just closed so the charts roll forward
-    /// to the freshly opened candle without waiting for the next poll tick.
-    func refreshNow() { Task { await refresh() } }
-
     /// Binance's klines endpoint is single-symbol (no `symbols=[…]` batch — that
     /// exists only on the ticker endpoints), so each coin is its own request;
     /// firing them concurrently keeps a multi-coin refresh as fast as one.
-    private func refresh() async {
+    func refresh() async {
         let interval = settings.timeframe.label
         let symbols = coins.map(\.symbol)
         await withTaskGroup(of: (String, [Candle]?).self) { group in
@@ -109,13 +143,17 @@ final class CoinMonitor: ObservableObject {
 
     private func apply(symbol: String, candles: [Candle]?) {
         guard let index = coins.firstIndex(where: { $0.symbol == symbol }) else { return }
+        var coin = coins[index]
         if let candles, !candles.isEmpty {
-            coins[index].candles = candles
-            coins[index].price = candles.last?.close
-            coins[index].failed = false
+            coin.candles = candles
+            coin.price = candles.last?.close
+            coin.failed = false
         } else {
-            coins[index].failed = true
+            coin.failed = true
         }
+        // One write = one publish: SwiftUI diffs once and the alert engine
+        // evaluates once per coin per poll, not once per touched field.
+        coins[index] = coin
     }
 
     /// Reconcile the live list with the persisted symbols, preserving already
@@ -124,7 +162,8 @@ final class CoinMonitor: ObservableObject {
         let symbols = settings.watchedSymbols
         coins.removeAll { !symbols.contains($0.symbol) }
         for symbol in symbols where !coins.contains(where: { $0.symbol == symbol }) {
-            coins.append(WatchedCoin(symbol: symbol, displayName: Self.display(symbol)))
+            coins.append(WatchedCoin(symbol: symbol, displayName: Self.display(symbol),
+                                     levels: settings.priceLevels[symbol] ?? []))
         }
         coins.sort {
             (symbols.firstIndex(of: $0.symbol) ?? 0) < (symbols.firstIndex(of: $1.symbol) ?? 0)

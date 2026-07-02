@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import KlineCore
 
-/// The popover panel: countdown readout, timeframe picker, the watched-coin
+/// The panel content: countdown readout, timeframe picker, the watched-coin
 /// chart, toggles and quit. The Watch-coin button opens a spotlight-style
 /// picker that replaces the panel until a coin is chosen or it's dismissed.
 struct PopoverView: View {
@@ -64,7 +64,14 @@ struct PopoverView: View {
             VStack(spacing: 0) {
                 ForEach(Array(monitor.coins.enumerated()), id: \.element.id) { index, coin in
                     if index > 0 { Divider() }
-                    CoinRowView(coin: coin, onRemove: { monitor.remove(coin.symbol) })
+                    CoinRowView(
+                        coin: coin,
+                        drawLines: settings.drawLines,
+                        onRemove: { monitor.remove(coin.symbol) },
+                        onAddLevel: { monitor.addLevel(coin.symbol, price: $0) },
+                        onRemoveLevel: { monitor.removeLevel(coin.symbol, id: $0.id) },
+                        onToggleBell: { monitor.setBell(coin.symbol, id: $0.id, on: !$0.bell) }
+                    )
                 }
             }
         }
@@ -145,6 +152,12 @@ struct PopoverView: View {
     private var toggles: some View {
         VStack(spacing: 0) {
             row(
+                title: "Draw lines",
+                subtitle: "Mark price levels and alert on a cross",
+                isOn: $settings.drawLines
+            )
+            Divider()
+            row(
                 title: "Show countdown in menu bar",
                 subtitle: "Off shows just the icon",
                 isOn: $settings.showCountdown
@@ -220,12 +233,18 @@ extension Text {
 /// the hover the way a header-only region would.
 private struct CoinRowView: View {
     let coin: WatchedCoin
+    let drawLines: Bool
     let onRemove: () -> Void
+    let onAddLevel: (Double) -> Void
+    let onRemoveLevel: (PriceLevel) -> Void
+    let onToggleBell: (PriceLevel) -> Void
     @State private var rowHover = false
 
     // Layout constants — these also derive `rowHeight`, which sizes the scroll
     // viewport, so a change here keeps the 2-row clamp in sync automatically.
-    private static let chartHeight: CGFloat = 96
+    // The chart height is the same in every mode so toggling Draw lines never
+    // resizes the panel mid-glance.
+    private static let chartHeight: CGFloat = 120  // 1.25× the original compact height
     private static let spacing: CGFloat = 9
     private static let verticalPadding: CGFloat = 13
     private static let headerHeight: CGFloat = 14  // single-line ticker/price row
@@ -265,7 +284,22 @@ private struct CoinRowView: View {
                 .foregroundStyle(.secondary)
                 .frame(height: Self.chartHeight, alignment: .center)
                 .frame(maxWidth: .infinity)
+        } else if drawLines {
+            CandleChartView(candles: coin.candles, levels: coin.levels.map(\.price))
+                .padding(.horizontal, PriceLevelOverlay.gutter)  // gutters hold the controls; candles sit inside
+                .frame(height: Self.chartHeight)
+                .overlay(
+                    PriceLevelOverlay(
+                        candles: coin.candles,
+                        levels: coin.levels,
+                        rowHover: rowHover,
+                        onAdd: onAddLevel,
+                        onRemove: onRemoveLevel,
+                        onToggleBell: onToggleBell
+                    )
+                )
         } else {
+            // Drawing off: the plain chart, no controls or gutters.
             CandleChartView(candles: coin.candles)
                 .frame(height: Self.chartHeight)
         }
@@ -293,33 +327,6 @@ private struct TrashButton: View {
         .allowsHitTesting(visible)
         .onHover { hover = $0 }
         .help("Remove from watchlist")
-    }
-}
-
-/// Group-separated price with a precision that suits the magnitude: coarse for
-/// four-figure coins, finer for sub-dollar ones.
-enum PriceFormat {
-    // One reusable formatter per precision — NumberFormatter is costly to build,
-    // and the header re-renders on every price tick.
-    private static let formatters: [Int: NumberFormatter] = Dictionary(
-        uniqueKeysWithValues: [1, 2, 4, 6].map { digits in
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            formatter.minimumFractionDigits = digits
-            formatter.maximumFractionDigits = digits
-            return (digits, formatter)
-        }
-    )
-
-    static func string(_ price: Double) -> String {
-        let digits: Int
-        switch abs(price) {
-        case 1000...: digits = 1
-        case 1...: digits = 2
-        case 0.01...: digits = 4
-        default: digits = 6
-        }
-        return formatters[digits]?.string(from: NSNumber(value: price)) ?? String(price)
     }
 }
 

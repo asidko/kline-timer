@@ -25,6 +25,12 @@ public enum CandleClock {
         Int((now / TimeInterval(timeframe.seconds)).rounded(.down))
     }
 
+    /// Epoch-millisecond open time of the candle at `candleIndex` — the inverse
+    /// of `candleIndex(timeframe:now:)`, in the units exchanges key klines by.
+    public static func openTimeMs(candleIndex: Int, timeframe: Timeframe) -> Int {
+        candleIndex * timeframe.seconds * 1000
+    }
+
     /// Whether the candle is in its final minute — the window the UI may flag
     /// with a red readout. Only candles longer than the 60s window qualify: a 1m
     /// candle is never "final" (it would otherwise be "final" its whole life).

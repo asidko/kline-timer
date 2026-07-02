@@ -54,13 +54,24 @@ final class CandleClockTests: XCTestCase {
         XCTAssertEqual(CandleClock.format(secondsLeft: 3661), "1:01:01")
     }
 
+    // Close alerts pick the just-closed candle by its exchange open time, so the
+    // index→open-time mapping must invert candleIndex exactly — a mismatch means
+    // alerts silently judge the wrong candle.
+    func testOpenTimeMsInvertsCandleIndex() {
+        let now: TimeInterval = 1_700_003_456
+        let index = CandleClock.candleIndex(timeframe: .m5, now: now)
+        let openTimeMs = CandleClock.openTimeMs(candleIndex: index, timeframe: .m5)
+        XCTAssertEqual(CandleClock.candleIndex(timeframe: .m5, now: TimeInterval(openTimeMs) / 1000), index)
+        XCTAssertEqual(openTimeMs % (5 * 60 * 1000), 0)  // aligned to the 5m grid
+    }
+
     // The chart fits to the series extremes: lowest low and highest high across
     // all candles, not just the first or last. A wrong range squashes the chart.
     func testPriceRangeSpansAllCandles() {
         let candles = [
-            Candle(open: 10, high: 12, low: 9, close: 11),
-            Candle(open: 11, high: 15, low: 8, close: 14),
-            Candle(open: 14, high: 14, low: 13, close: 13),
+            Candle(openTime: 0, open: 10, high: 12, low: 9, close: 11),
+            Candle(openTime: 1, open: 11, high: 15, low: 8, close: 14),
+            Candle(openTime: 2, open: 14, high: 14, low: 13, close: 13),
         ]
         let range = candles.priceRange
         XCTAssertEqual(range?.low, 8)
